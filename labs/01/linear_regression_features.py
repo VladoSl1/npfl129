@@ -22,29 +22,45 @@ def main(args: argparse.Namespace) -> list[float]:
     xs = np.linspace(0, 7, num=args.data_size)
     ys = np.sin(xs) + np.random.RandomState(args.seed).normal(0, 0.2, size=args.data_size)
 
+    xs = xs.reshape(args.data_size, 1)
+    X = None
+
     rmses = []
     for order in range(1, args.range + 1):
         # TODO: Create features `(x^1, x^2, ..., x^order)`, preferably in this ordering.
         # Note that you can just append `x^order` to the features from the previous iteration.
-        ...
+
+        new_feature = np.power(xs, order)
+
+        if X is not None:
+            X = np.hstack([X, np.power(xs, order)])
+        else:
+            X = new_feature
 
         # TODO: Split the data into a train set and a test set.
         # Use `sklearn.model_selection.train_test_split` method call, passing
         # arguments `test_size=args.test_size, random_state=args.seed`.
-        ...
+
+        print(X.shape, ys.shape, xs.shape)
+
+        train_data, test_data, train_target, test_target = sklearn.model_selection.train_test_split(
+            X, ys, test_size=args.test_size, random_state=args.seed)
+
+
+        print(train_data.shape, train_target.shape, test_data.shape, test_target.shape)
 
         # TODO: Fit a linear regression model `sklearn.linear_model.LinearRegression(tol=1e-15)`
         # on the train set using the `fit` method. We use a stricter tolerance `tol=1e-15`
         # as the default tolerance is not sufficient when using features of higher order.
-        model = ...
+        model = sklearn.linear_model.LinearRegression(tol=1e-15).fit(train_data, train_target)
 
         # TODO: Predict targets on the test set using the `predict` method of the trained model.
-        ...
+        y_prediction = model.predict(test_data)
 
         # TODO: Compute root mean square error on the test set predictions.
         # You can either do it manually, or you can look at the metrics offered
         # by the `sklearn.metrics` module.
-        rmse = ...
+        rmse = sklearn.metrics.root_mean_squared_error(test_target, y_prediction)
 
         rmses.append(rmse)
 
@@ -58,7 +74,7 @@ def main(args: argparse.Namespace) -> list[float]:
             plt.plot(train_data[:, 0], train_target, "go")
             plt.plot(test_data[:, 0], test_target, "ro")
             plt.plot(np.linspace(xs[0], xs[-1], num=100),
-                     model.predict(np.power.outer(np.linspace(xs[0], xs[-1], num=100), np.arange(1, order + 1))), "b")
+                     model.predict(np.power.outer(np.linspace(xs[0, 0], xs[-1, 0], num=100), np.arange(1, order + 1))), "b")
             plt.show() if args.plot is True else plt.savefig(args.plot, transparent=True, bbox_inches="tight")
 
     return rmses
