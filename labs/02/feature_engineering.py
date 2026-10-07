@@ -8,6 +8,8 @@ import sklearn.model_selection
 import sklearn.pipeline
 import sklearn.preprocessing
 
+import pdb
+
 parser = argparse.ArgumentParser()
 # These arguments will be set appropriately by ReCodEx, even if you change them.
 parser.add_argument("--dataset", default="diabetes", type=str, help="Standard sklearn dataset to load")
@@ -23,6 +25,10 @@ def main(args: argparse.Namespace) -> tuple[np.ndarray, np.ndarray]:
     # TODO: Split the dataset into a train set and a test set.
     # Use `sklearn.model_selection.train_test_split` method call, passing
     # arguments `test_size=args.test_size, random_state=args.seed`.
+
+    X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(
+        dataset.data, dataset.target, test_size=args.test_size, random_state=args.seed
+    )
 
     # TODO: Process the input columns in the following way:
     #
@@ -40,6 +46,11 @@ def main(args: argparse.Namespace) -> tuple[np.ndarray, np.ndarray]:
     # In the output, first there should be all the one-hot categorical features,
     # and then the real-valued features. To process different dataset columns
     # differently, you can use `sklearn.compose.ColumnTransformer`.
+
+    print(dataset.data.shape)
+    for column in range(dataset.data.shape[1]):
+        print(column, np.unique(dataset.data[:, column]))
+
 
     # TODO: To the current features, append polynomial features of order 2.
     # If the input values are `[a, b, c, d]`, you should append
@@ -59,6 +70,8 @@ def main(args: argparse.Namespace) -> tuple[np.ndarray, np.ndarray]:
     # Finally, transform testing data to `test_data`.
     train_data = ...
     test_data = ...
+
+    pdb.set_trace()
 
     return train_data[:5], test_data[:5]
 

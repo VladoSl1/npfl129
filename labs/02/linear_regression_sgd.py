@@ -7,6 +7,8 @@ import sklearn.linear_model
 import sklearn.metrics
 import sklearn.model_selection
 
+import pdb
+
 parser = argparse.ArgumentParser()
 # These arguments will be set appropriately by ReCodEx, even if you change them.
 parser.add_argument("--batch_size", default=10, type=int, help="Batch size")
@@ -31,13 +33,23 @@ def main(args: argparse.Namespace) -> tuple[list[float], float, float]:
     # TODO: Append a constant feature with value 1 to the end of all input data.
     # Then we do not need to explicitly represent bias - it becomes the last weight.
 
+    ones = np.ones((data.shape[0], 1))
+    data = np.hstack([data, ones])
+
+    unbias_mask = np.ones(data.shape[1])
+    unbias_mask[-1] = 0
+
+
     # TODO: Split the dataset into a train set and a test set.
     # Use `sklearn.model_selection.train_test_split` method call, passing
     # arguments `test_size=args.test_size, random_state=args.seed`.
-    train_data, test_data, train_target, test_target = ...
+    train_data, test_data, train_target, test_target = sklearn.model_selection.train_test_split(
+        data, target, test_size=args.test_size, random_state=args.seed
+    )
 
     # Generate initial linear regression weights.
     weights = generator.uniform(size=train_data.shape[1], low=-0.1, high=0.1)
+
 
     train_rmses, test_rmses = [], []
     for epoch in range(args.epochs):
@@ -54,13 +66,34 @@ def main(args: argparse.Namespace) -> tuple[list[float], float, float]:
         # and the SGD update is
         #   weights = weights - args.learning_rate * gradient
 
+        for batch_offset in range(0, len(train_data), args.batch_size):
+
+            batch_sum = np.zeros(weights.shape)
+            for i in range(args.batch_size):
+                j = permutation[i + batch_offset]
+                batch_sum += (train_data[j].T @ weights - train_target[j]) * train_data[j]
+
+            unregularized_loss = batch_sum / args.batch_size
+            regular_loss = args.l2 * unbias_mask * weights
+            gradient = unregularized_loss + regular_loss
+
+            weights -= args.learning_rate * gradient
+
+        y_train_pred = train_data @ weights
+        train_rmse = sklearn.metrics.root_mean_squared_error(train_target, y_train_pred)
+
+        y_test_pred = test_data @ weights
+        test_rmse = sklearn.metrics.root_mean_squared_error(test_target, y_test_pred)
+
         # TODO: Append current RMSE on train/test to `train_rmses`/`test_rmses`.
-        train_rmses.append(...)
-        test_rmses.append(...)
+        train_rmses.append(train_rmse)
+        test_rmses.append(test_rmse)
 
     # TODO: Compute into `explicit_rmse` test data RMSE when fitting
     # `sklearn.linear_model.LinearRegression` on `train_data` (ignoring `args.l2`).
-    explicit_rmse = ...
+    model = sklearn.linear_model.LinearRegression().fit(train_data, train_target)
+    y_test_pred = model.predict(test_data)
+    explicit_rmse = sklearn.metrics.root_mean_squared_error(test_target, y_test_pred)
 
     if args.plot:
         import matplotlib.pyplot as plt
