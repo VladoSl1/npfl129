@@ -19,6 +19,11 @@ parser.add_argument("--test_size", default=0.5, type=lambda x: int(x) if x.isdig
 # If you add more arguments, ReCodEx will keep them with your default values.
 
 
+# https://stackoverflow.com/questions/3501382/checking-whether-a-variable-is-an-integer-or-not
+def is_cat_col(col: np.ndarray) -> bool:
+    return bool(np.all(col == col.astype(int)))
+
+
 def main(args: argparse.Namespace) -> tuple[np.ndarray, np.ndarray]:
     dataset = getattr(sklearn.datasets, "load_{}".format(args.dataset))()
 
@@ -47,9 +52,26 @@ def main(args: argparse.Namespace) -> tuple[np.ndarray, np.ndarray]:
     # and then the real-valued features. To process different dataset columns
     # differently, you can use `sklearn.compose.ColumnTransformer`.
 
-    print(dataset.data.shape)
-    for column in range(dataset.data.shape[1]):
-        print(column, np.unique(dataset.data[:, column]))
+    cat_cols = []
+    num_cols = []
+
+    for i in range(X_train.shape[1]):
+        col = X_train[:, i]
+        if (is_cat_col(col)):
+            cat_cols.append(i)
+        else:
+            num_cols.append(i)
+
+    enc = sklearn.preprocessing.OneHotEncoder(sparse_output=False, handle_unknown="ignore")
+    scaler = sklearn.preprocessing.StandardScaler()
+
+    ct = sklearn.compose.ColumnTransformer(
+        [
+            ("categorical", enc, cat_cols),
+            ("numerical", scaler, num_cols)
+
+        ]
+    )
 
 
     # TODO: To the current features, append polynomial features of order 2.
@@ -59,19 +81,27 @@ def main(args: argparse.Namespace) -> tuple[np.ndarray, np.ndarray]:
     #   sklearn.preprocessing.PolynomialFeatures(2, include_bias=False)
     # which appends such polynomial features of order 2 to the given features.
 
+    poly = sklearn.preprocessing.PolynomialFeatures(2, include_bias=False)
+
     # TODO: You can wrap all the feature processing steps into one transformer
     # by using `sklearn.pipeline.Pipeline`. Although not strictly needed, it is
     # usually comfortable.
+
+    pipeline = sklearn.pipeline.Pipeline(
+        [
+            ("col_transform", ct),
+            ("poly", poly)
+        ]
+    )
 
     # TODO: Fit the feature preprocessing steps (the composed pipeline with all of
     # them; or the individual steps, if you prefer) on the training data (using `fit`).
     # Then transform the training data into `train_data` (with a `transform` call;
     # however, you can combine the two methods into a single `fit_transform` call).
     # Finally, transform testing data to `test_data`.
-    train_data = ...
-    test_data = ...
 
-    pdb.set_trace()
+    train_data = pipeline.fit_transform(X_train)
+    test_data = pipeline.transform(X_test)
 
     return train_data[:5], test_data[:5]
 
