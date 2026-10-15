@@ -18,6 +18,36 @@ parser.add_argument("--seed", default=42, type=int, help="Random seed")
 parser.add_argument("--test_size", default=0.5, type=lambda x: int(x) if x.isdigit() else float(x), help="Test size")
 # If you add more arguments, ReCodEx will keep them with your default values.
 
+def sigmoid(x: float) -> float:
+    return 1/(1+np.exp(-x))
+
+def dsigmoid(x: float) -> float:
+    sig = sigmoid(x)
+    return sig*(1-sig)
+
+def accuracy(data: np.ndarray,
+             weights: np.ndarray,
+             target: np.ndarray,
+             boundary_decision=0) -> float:
+    target_pred = (data @ weights > boundary_decision).astype(int)
+    bad_count = np.sum(np.abs(target_pred - target))
+
+    return 1 - bad_count / target.shape[0]
+
+def loss(data: np.ndarray,
+             weights: np.ndarray,
+             target: np.ndarray) -> float:
+    sum_ = 0
+    for i in range(data.shape[0]):
+        yi = data[i].T @ weights
+        if target[i] == 1:
+            sum_ += -np.log(sigmoid(yi))
+        else:
+            sum_ += -np.log(1-sigmoid(yi))
+
+
+    return sum_ / data.shape[0]
+
 
 def main(args: argparse.Namespace) -> tuple[np.ndarray, list[tuple[float, float]]]:
     # Create a random generator with a given seed.
@@ -30,9 +60,16 @@ def main(args: argparse.Namespace) -> tuple[np.ndarray, list[tuple[float, float]
     # TODO: Append a constant feature with value 1 to the end of all input data.
     # Then we do not need to explicitly represent bias - it becomes the last weight.
 
+    ones = np.ones((data.shape[0], 1))
+    data = np.hstack((data, ones))
+
     # TODO: Split the dataset into a train set and a test set.
     # Use `sklearn.model_selection.train_test_split` method call, passing
     # arguments `test_size=args.test_size, random_state=args.seed`.
+
+    train_data, test_data, train_target, test_target = sklearn.model_selection.train_test_split(
+        data, target, test_size=args.test_size, random_state=args.seed
+    )
 
     # Generate initial logistic regression weights.
     weights = generator.uniform(size=train_data.shape[1], low=-0.1, high=0.1)
@@ -44,10 +81,32 @@ def main(args: argparse.Namespace) -> tuple[np.ndarray, list[tuple[float, float]
         # `args.batch_size` of them, average their gradient, and update the weights.
         # You can assume that `args.batch_size` exactly divides `train_data.shape[0]`.
 
+        for batch_offset in range(0, train_data.shape[0], args.batch_size):
+            sum_ = 0
+            for rel_offset in range(args.batch_size):
+                i = permutation[batch_offset + rel_offset]
+                yi = train_data[i].T @ weights
+                if train_target[i] == 1:
+                    s = -1/sigmoid(yi) * dsigmoid(yi) * train_data[i].T
+                else:
+                    s = 1/(1-sigmoid(yi)) * dsigmoid(yi) * train_data[i].T
+
+                sum_ += s
+
+            g = sum_ / args.batch_size
+            weights -= args.learning_rate*g
+
+
         # TODO: After the SGD epoch, measure the average loss and accuracy for both the
         # train set and the test set. The loss is the average MLE loss (i.e., the
         # negative log-likelihood, or cross-entropy loss, or KL loss) per example.
-        train_accuracy, train_loss, test_accuracy, test_loss = ...
+
+        train_accuracy = accuracy(train_data, weights, train_target)
+        train_loss = loss(train_data, weights, train_target)
+        test_accuracy = accuracy(test_data, weights, test_target)
+        test_loss = loss(test_data, weights, test_target)
+
+        print(train_accuracy)
 
         print("After epoch {}: train loss {:.4f} acc {:.1f}%, test loss {:.4f} acc {:.1f}%".format(
             epoch + 1, train_loss, 100 * train_accuracy, test_loss, 100 * test_accuracy))
