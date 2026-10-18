@@ -86,6 +86,81 @@ class Dataset:
             setattr(self, key, value)
 
 
+def split_cat_num_features(X: np.ndarray) -> tuple[list[int], list[int]]:
+    cat_cols = []
+    num_cols = []
+    for i in range(X.shape[1]):
+        col = X[:, i]
+        if bool(np.all(col == col.astype(int))):
+            cat_cols.append(i)
+        else:
+            num_cols.append(i)
+
+    return cat_cols, num_cols
+
+
+def create_model_from_hyperparameters(
+    hyperparams: dict[str, float],
+) -> sklearn.pipeline.Pipeline:
+    enc = sklearn.preprocessing.OneHotEncoder(
+        sparse_output=False, handle_unknown="ignore"
+    )
+    scaler = sklearn.preprocessing.StandardScaler()
+    ct = sklearn.compose.ColumnTransformer(
+        [
+            ("categorical", enc, hyperparams["cat_cols"]),
+            ("numerical", scaler, hyperparams["num_cols"]),
+        ]
+    )
+    # poly = sklearn.preprocessing.PolynomialFeatures(2, include_bias=False)
+
+    model = sklearn.pipeline.Pipeline(
+        [
+            ("col_transform", ct),
+            # ("poly", poly),
+            ("lin reg", sklearn.linear_model.Ridge(alpha=hyperparams["lambda"])),
+        ]
+    )
+
+    return model
+
+
+def determine_best_lambda(X_train, y_train, hyperparams, plot=False) -> tuple[float]:
+    lambdas = np.geomspace(0.01, 10, num=500)
+    best_lambda = None
+    best_rmse = float("inf")
+    rmses = []
+
+    hyperp = hyperparams.copy()
+
+    for lambda_ in lambdas:
+        hyperp["lambda"] = lambda_
+        model = create_model_from_hyperparameters(hyperp)
+
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_train)
+
+        rmse = sklearn.metrics.root_mean_squared_error(y_train, y_pred)
+        rmses.append(rmse)
+
+        if best_rmse > rmse:
+            best_rmse = rmse
+            best_lambda = lambda_
+
+    if plot:
+        import matplotlib.pyplot as plt
+
+        plt.plot(lambdas, rmses)
+        plt.xscale("log")
+        plt.xlabel("L2 regularization strength $\\lambda$")
+        plt.ylabel("RMSE")
+        plt.show() if plot is True else plt.savefig(
+            plot, transparent=True, bbox_inches="tight"
+        )
+
+    return best_lambda
+
+
 def main(args: argparse.Namespace) -> Optional[npt.ArrayLike]:
     if args.predict is None:
         # We are training a model.
@@ -101,77 +176,25 @@ def main(args: argparse.Namespace) -> Optional[npt.ArrayLike]:
             random_state=args.seed,
         )
 
-        # feature preprocessing
-        cat_cols = []
-        num_cols = []
-        for i in range(X_train.shape[1]):
-            col = X_train[:, i]
-            if bool(np.all(col == col.astype(int))):
-                cat_cols.append(i)
-            else:
-                num_cols.append(i)
+        hyperparams = dict()
 
-        enc = sklearn.preprocessing.OneHotEncoder(
-            sparse_output=False, handle_unknown="ignore"
-        )
-        scaler = sklearn.preprocessing.StandardScaler()
-        ct = sklearn.compose.ColumnTransformer(
-            [("categorical", enc, cat_cols), ("numerical", scaler, num_cols)]
-        )
+        cat_cols, num_cols = split_cat_num_features(X_train)
+        hyperparams["cat_cols"] = cat_cols
+        hyperparams["num_cols"] = num_cols
+
         # poly = sklearn.preprocessing.PolynomialFeatures(2, include_bias=False)
 
-        model = sklearn.pipeline.Pipeline(
-            [
-                ("col_transform", ct),
-                # ("poly", poly),
-                ("lin reg", sklearn.linear_model.Ridge(alpha=0.1)),
-            ]
+        best_lambda = determine_best_lambda(
+            X_train, y_train, hyperparams, plot=args.plot
         )
+        hyperparams["lambda"] = best_lambda
 
-        best_lambda = None
-        lambdas = np.geomspace(0.01, 10, num=500)
-        best_rmse = float("inf")
-        rmses = []
-
-        for lambda_ in lambdas:
-            model = sklearn.pipeline.Pipeline(
-                [
-                    ("col_transform", ct),
-                    # ("poly", poly),
-                    # ("lin reg", sklearn.linear_model.Ridge(alpha=lambda_)),
-                    (
-                        "sgd",
-                        sklearn.linear_model.SGDRegressor(
-                            alpha=lambda_, early_stopping=False, random_state=args.seed
-                        ),
-                    ),
-                ]
-            )
-            model.fit(X_train, y_train)
-            y_pred = model.predict(X_test)
-            rmse = sklearn.metrics.root_mean_squared_error(y_test, y_pred)
-            rmses.append(rmse)
-
-            if best_rmse > rmse:
-                best_rmse = rmse
-                best_lambda = lambda_
-
-        model = sklearn.pipeline.Pipeline(
-            [
-                ("col_transform", ct),
-                # ("poly", poly),
-                ("lin reg", sklearn.linear_model.Ridge(alpha=best_lambda)),
-                # (
-                #     "sgd",
-                #     sklearn.linear_model.SGDRegressor(
-                #         alpha=best_lambda, early_stopping=False, random_state=args.seed
-                #     ),
-                # ),
-            ]
-        )
-        print(f"Best lambda: {best_lambda}, RMSE: {best_rmse}")
-
+        model = create_model_from_hyperparameters(hyperparams)
         model.fit(X_train, y_train)
+        y_pred = model.predict(X_train)
+        best_rmse = sklearn.metrics.root_mean_squared_error(y_train, y_pred)
+
+        print(f"Best lambda: {best_lambda}, RMSE: {best_rmse}")
 
         # train_data = pipeline.fit_transform(X_train)
         # test_data = pipeline.transform(X_test)
@@ -179,21 +202,6 @@ def main(args: argparse.Namespace) -> Optional[npt.ArrayLike]:
         y_pred = model.predict(X_test)
         rmse = sklearn.metrics.root_mean_squared_error(y_test, y_pred)
         print(f"RMSE: {rmse}")
-
-        if args.plot:
-            # This block is not required to pass in ReCodEx; however, it is useful
-            # to learn to visualize the results. If you collect the respective
-            # results for `lambdas` to an array called `rmses`, the following lines
-            # will plot the result if you add `--plot` argument.
-            import matplotlib.pyplot as plt
-
-            plt.plot(lambdas, rmses)
-            plt.xscale("log")
-            plt.xlabel("L2 regularization strength $\\lambda$")
-            plt.ylabel("RMSE")
-            plt.show() if args.plot is True else plt.savefig(
-                args.plot, transparent=True, bbox_inches="tight"
-            )
 
         # Serialize the model.
         with lzma.open(args.model_path, "wb") as model_file:
