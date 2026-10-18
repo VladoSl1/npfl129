@@ -44,7 +44,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--test_size",
-    default=0.5,
+    default=0.2,
     type=lambda x: int(x) if x.isdigit() else float(x),
     help="Test size",
 )
@@ -112,12 +112,12 @@ def create_model_from_hyperparameters(
             ("numerical", scaler, hyperparams["num_cols"]),
         ]
     )
-    # poly = sklearn.preprocessing.PolynomialFeatures(2, include_bias=False)
+    poly = sklearn.preprocessing.PolynomialFeatures(2, include_bias=False)
 
     model = sklearn.pipeline.Pipeline(
         [
             ("col_transform", ct),
-            # ("poly", poly),
+            ("poly", poly),
             ("lin reg", sklearn.linear_model.Ridge(alpha=hyperparams["lambda"])),
         ]
     )
@@ -126,12 +126,14 @@ def create_model_from_hyperparameters(
 
 
 def determine_best_lambda(X_train, y_train, hyperparams, plot=False) -> tuple[float]:
-    lambdas = np.geomspace(0.01, 10, num=500)
+    lambdas = np.geomspace(0.01, 10, num=50)
     best_lambda = None
     best_rmse = float("inf")
     rmses = []
 
     hyperp = hyperparams.copy()
+
+    cv = sklearn.model_selection.KFold(n_splits=5, shuffle=True, random_state=42)
 
     for lambda_ in lambdas:
         hyperp["lambda"] = lambda_
@@ -140,7 +142,12 @@ def determine_best_lambda(X_train, y_train, hyperparams, plot=False) -> tuple[fl
         model.fit(X_train, y_train)
         y_pred = model.predict(X_train)
 
-        rmse = sklearn.metrics.root_mean_squared_error(y_train, y_pred)
+        # neg_root_mean_squared_error - higher rmse is worse result
+        # this splits data into 5 parts, on the 4 training happens and the fifth is used for testing
+        scores = sklearn.model_selection.cross_val_score(
+            model, X_train, y_train, cv=cv, scoring="neg_root_mean_squared_error"
+        )
+        rmse = -scores.mean()
         rmses.append(rmse)
 
         if best_rmse > rmse:
