@@ -18,6 +18,7 @@ import sklearn.datasets
 import sklearn.linear_model
 import sklearn.metrics
 import sklearn.model_selection
+import sklearn.compose
 
 parser = argparse.ArgumentParser()
 # These arguments will be set appropriately by ReCodEx, even if you change them.
@@ -44,7 +45,7 @@ parser.add_argument(
 
 parser.add_argument(
     "--test_size",
-    default=0.2,
+    default=0.20,
     type=lambda x: int(x) if x.isdigit() else float(x),
     help="Test size",
 )
@@ -99,30 +100,51 @@ def split_cat_num_features(X: np.ndarray) -> tuple[list[int], list[int]]:
     return cat_cols, num_cols
 
 
+def identity(t):
+    return t
+
+
+def clip_non_negative(t):
+    return np.clip(t, 0, None)
+
+
 def create_model_from_hyperparameters(
     hyperparams: dict[str, float],
 ) -> sklearn.pipeline.Pipeline:
     enc = sklearn.preprocessing.OneHotEncoder(
         sparse_output=False, handle_unknown="ignore"
     )
-    scaler = sklearn.preprocessing.StandardScaler()
+
+    numerical_pipeline = sklearn.pipeline.Pipeline(
+        [
+            ("scaler", sklearn.preprocessing.StandardScaler()),
+        ]
+    )
+
     ct = sklearn.compose.ColumnTransformer(
         [
             ("categorical", enc, hyperparams["cat_cols"]),
-            ("numerical", scaler, hyperparams["num_cols"]),
+            ("numerical", numerical_pipeline, hyperparams["num_cols"]),
         ]
     )
-    poly = sklearn.preprocessing.PolynomialFeatures(2, include_bias=False)
 
     model = sklearn.pipeline.Pipeline(
         [
             ("col_transform", ct),
-            ("poly", poly),
+            ("poly", sklearn.preprocessing.PolynomialFeatures(2, include_bias=False)),
             ("lin reg", sklearn.linear_model.Ridge(alpha=hyperparams["lambda"])),
         ]
     )
 
-    return model
+    # do not predict negative number of bicycles
+    non_negative_model = sklearn.compose.TransformedTargetRegressor(
+        regressor=model,
+        func=identity,
+        inverse_func=clip_non_negative,
+        check_inverse=False,
+    )
+
+    return non_negative_model
 
 
 def determine_best_lambda(X_train, y_train, hyperparams, plot=False) -> tuple[float]:
@@ -221,7 +243,6 @@ def main(args: argparse.Namespace) -> Optional[npt.ArrayLike]:
         with lzma.open(args.model_path, "rb") as model_file:
             model = pickle.load(model_file)
 
-        # TODO: Generate `predictions` with the test set predictions.
         predictions = model.predict(test.data)
 
         return predictions
