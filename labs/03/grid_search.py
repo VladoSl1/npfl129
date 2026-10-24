@@ -67,7 +67,7 @@ def main(args: argparse.Namespace) -> float:
     # For the best combination of parameters, compute the test set accuracy.
     #
     # The easiest way is to use `sklearn.model_selection.GridSearchCV`.
-    model=sklearn.model_selection.GridSearchCV(estimator=pipe, param_grid={"polynomial__degree":[1,2],"lr__C":[0.01, 1, 100],"lr__solver":["lbfgs", "sag"]}, cv= sklearn.model_selection.StratifiedKFold(n_splits=5, shuffle=True, random_state=args.seed))
+    model=sklearn.model_selection.GridSearchCV(estimator=pipe, param_grid={"polynomial__degree":[1,2],"lr__C":[0.01, 1, 100],"lr__solver":["lbfgs", "sag"]}, cv= sklearn.model_selection.StratifiedKFold(n_splits=5))
     model.fit(train_data,train_target)
     y_predikce=model.predict(test_data)
     test_accuracy=sklearn.metrics.accuracy_score(test_target, y_predikce)
