@@ -23,6 +23,8 @@ import sklearn.model_selection
 import sklearn.pipeline
 import sklearn.preprocessing
 
+import warnings
+
 parser = argparse.ArgumentParser()
 # These arguments will be set appropriately by ReCodEx, even if you change them.
 parser.add_argument("--recodex", default=False, action="store_true", help="Running in ReCodEx")
@@ -44,7 +46,7 @@ def main(args: argparse.Namespace) -> float:
     # arguments `test_size=args.test_size, random_state=args.seed`.
 
     train_data, test_data, train_target, test_target = sklearn.model_selection.train_test_split(
-        dataset, dataset.target, test_size=args.test_size, random_state=args.seed
+        dataset.data, dataset.target, test_size=args.test_size, random_state=args.seed
     )
 
     # TODO: Create a pipeline, which
@@ -54,8 +56,8 @@ def main(args: argparse.Namespace) -> float:
 
     pipeline = sklearn.pipeline.Pipeline([
          ("minmax scaler", sklearn.preprocessing.MinMaxScaler()),
-         ("poly features", sklearn.preprocessing.PolynomialFeatures()),
-         ("logistic regression", sklearn.linear_model.LogisticRegression(random_state=args.seed))
+         ("poly_features", sklearn.preprocessing.PolynomialFeatures()),
+         ("logistic_regression", sklearn.linear_model.LogisticRegression(random_state=args.seed))
     ])
 
     # Then, using `sklearn.model_selection.StratifiedKFold` with 5 folds, evaluate
@@ -69,18 +71,28 @@ def main(args: argparse.Namespace) -> float:
     #
     # The easiest way is to use `sklearn.model_selection.GridSearchCV`.
 
+    skf = sklearn.model_selection.StratifiedKFold(n_splits=5)
 
+    params = {
+        "poly_features__degree": [1, 2],
+        "logistic_regression__C": [0.01, 1, 100],
+        "logistic_regression__solver": ["lbfgs", "sag"]
+    }
 
+    model = sklearn.model_selection.GridSearchCV(pipeline, params, cv=skf)
 
-    test_accuracy = ...
+    warnings.filterwarnings("ignore", category=sklearn.exceptions.ConvergenceWarning)
+    model.fit(train_data, train_target)
+
+    test_accuracy = sklearn.metrics.accuracy_score(test_target, model.predict(test_data))
 
     # If `model` is a fitted `GridSearchCV`, you can use the following code
     # to show the results of all the hyperparameter values evaluated:
-    #   for rank, accuracy, params in zip(model.cv_results_["rank_test_score"],
-    #                                     model.cv_results_["mean_test_score"],
-    #                                     model.cv_results_["params"]):
-    #       print("Rank: {:2d} Cross-val: {:.1f}%".format(rank, 100 * accuracy),
-    #             *("{}: {:<5}".format(key, value) for key, value in params.items()))
+    # for rank, accuracy, params in zip(model.cv_results_["rank_test_score"],
+    #                                 model.cv_results_["mean_test_score"],
+    #                                 model.cv_results_["params"]):
+    #   print("Rank: {:2d} Cross-val: {:.1f}%".format(rank, 100 * accuracy),
+    #         *("{}: {:<5}".format(key, value) for key, value in params.items()))
 
     # Note that with some hyperparameter values above, the training does not
     # converge in the default limit of 100 epochs and shows `ConvergenceWarning`s.
@@ -88,7 +100,6 @@ def main(args: argparse.Namespace) -> float:
     # only marginally, so there is no reason to do it. To get rid of the warnings,
     # you can add `-W ignore::UserWarning` just after `python` on the command line,
     # or you can use the following code (and the corresponding imports):
-    #   warnings.filterwarnings("ignore", category=sklearn.exceptions.ConvergenceWarning)
 
     return 100 * test_accuracy
 
