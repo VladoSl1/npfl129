@@ -93,8 +93,8 @@ def main(args: argparse.Namespace) -> Optional[npt.ArrayLike]:
  
         pipe=sklearn.pipeline.Pipeline([("transformer",data_transform),("polynomial",poly),("lr", regres)])
  
-        model=sklearn.model_selection.GridSearchCV(estimator=pipe, param_grid={"polynomial__degree":[1,2],"lr__C":[0.01, 1, 100],"lr__solver":["lbfgs", "sag"]}, cv= sklearn.model_selection.StratifiedKFold(n_splits=5))
-        model.fit(train_data,train_target)
+        model=sklearn.model_selection.GridSearchCV(estimator=pipe, param_grid={"polynomial__degree":[1,2],"lr__C":[0.01, 1, 10, 100, 200],"lr__solver":["lbfgs", "sag"]}, cv= sklearn.model_selection.StratifiedKFold(n_splits=5))
+        model.fit(train.data,train.target)
         y_predikce=model.predict(test_data)
  
         print("Accuracy:", sklearn.metrics.accuracy_score(test_target, y_predikce))
