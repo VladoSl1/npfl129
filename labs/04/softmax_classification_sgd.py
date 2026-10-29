@@ -64,10 +64,43 @@ def main(args: argparse.Namespace) -> tuple[np.ndarray, list[tuple[float, float]
         # $softmax(z) = softmax(z + any_constant)$ and compute $softmax(z) = softmax(z - maximum_of_z)$.
         # That way we only exponentiate non-positive values, and overflow does not occur.
 
+        for i in range(0,len(train_data), args.batch_size):
+            index = permutation[i:i+args.batch_size]
+            X_i=train_data[index]
+            t_i=train_target[index]
+
+            argument=X_i@weights-np.max(X_i@weights,axis=-1, keepdims=True)
+
+            exp_arg=np.exp(argument)
+            exp_arg_sum=np.sum(exp_arg, axis=-1, keepdims=True)
+            softmax=exp_arg/exp_arg_sum
+            weights-=(args.learning_rate/args.batch_size)*(X_i.transpose()@(softmax - np.eye(args.classes)[t_i]))
+
         # TODO: After the SGD epoch, measure the average loss and accuracy for both the
         # train test and the test set. The loss is the average MLE loss (i.e., the
         # negative log-likelihood, or cross-entropy loss, or KL loss) per example.
-        train_accuracy, train_loss, test_accuracy, test_loss = ...
+
+        argument_test=test_data@weights-np.max(test_data@weights,axis=-1, keepdims=True)
+
+        exp_arg_test=np.exp(argument_test)
+        exp_arg_sum_test=np.sum(exp_arg_test, axis=-1, keepdims=True)
+
+        test_predikce= exp_arg_test/exp_arg_sum_test
+
+        argument_train=train_data@weights-np.max(train_data@weights,axis=-1, keepdims=True)
+
+        exp_arg_train=np.exp(argument_train)
+        exp_arg_sum_train=np.sum(exp_arg_train, axis=-1, keepdims=True)
+
+        train_predikce= exp_arg_train/exp_arg_sum_train
+
+        train_accuracy = sklearn.metrics.accuracy_score(train_target, np.argmax(train_predikce,axis=1))
+
+        train_loss=-np.mean(np.log(train_predikce[np.arange(len(train_target)),train_target]))
+
+        test_accuracy = sklearn.metrics.accuracy_score(test_target, np.argmax(test_predikce,axis=1))
+
+        test_loss=-np.mean(np.log(test_predikce[np.arange(len(test_target)),test_target]))
 
         print("After epoch {}: train loss {:.4f} acc {:.1f}%, test loss {:.4f} acc {:.1f}%".format(
             epoch + 1, train_loss, 100 * train_accuracy, test_loss, 100 * test_accuracy))
