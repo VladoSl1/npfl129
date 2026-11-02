@@ -32,12 +32,15 @@ parser.add_argument("--seed", default=42, type=int, help="Random seed")
 parser.add_argument("--test_size", default=0.5, type=lambda x: int(x) if x.isdigit() else float(x), help="Test size")
 # If you add more arguments, ReCodEx will keep them with your default values.
 
+
 def sigmoid(x: float) -> float:
     return 1/(1+np.exp(-x))
+
 
 def dsigmoid(x: float) -> float:
     sig = sigmoid(x)
     return sig*(1-sig)
+
 
 def accuracy(data: np.ndarray,
              weights: np.ndarray,
@@ -47,6 +50,7 @@ def accuracy(data: np.ndarray,
     bad_count = np.sum(np.abs(target_pred - target))
 
     return 1 - bad_count / target.shape[0]
+
 
 def loss(data: np.ndarray,
              weights: np.ndarray,
@@ -58,7 +62,6 @@ def loss(data: np.ndarray,
             sum_ += -np.log(sigmoid(yi))
         else:
             sum_ += -np.log(1-sigmoid(yi))
-
 
     return sum_ / data.shape[0]
 
