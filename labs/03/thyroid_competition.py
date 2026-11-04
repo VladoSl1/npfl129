@@ -77,12 +77,9 @@ class Dataset:
     The target variable is binary, with 1 denoting a thyroid disease and
     0 normal function.
     """
-
-    def __init__(
-        self,
-        name="thyroid_competition.train.npz",
-        url="https://ufal.mff.cuni.cz/~courses/npfl129/2627/datasets/",
-    ):
+    def __init__(self,
+                 name="thyroid_competition.train.npz",
+                 url="https://ufal.mff.cuni.cz/~courses/npfl129/2627/datasets/"):
         if not os.path.exists(name):
             print("Downloading dataset {}...".format(name), file=sys.stderr)
             urllib.request.urlretrieve(url + name, filename="{}.tmp".format(name))
@@ -153,6 +150,18 @@ def get_optimized_model(hyperparams: dict):
             n_splits=5, shuffle=True, random_state=hyperparams["seed"]
         ),
     )
+class ThermometerBins(sklearn.base.BaseEstimator, sklearn.base.TransformerMixin):
+    def __init__(self, n_bins=5, strategy="quantile"):
+        self.n_bins, self.strategy = n_bins, strategy
+
+    def fit(self, X, y=None):
+        self.discretizer_ = sklearn.preprocessing.KBinsDiscretizer(self.n_bins, encode="ordinal", strategy=self.strategy)
+        self.discretizer_.fit(X)
+        return self
+
+    def transform(self, X):
+        X = self.discretizer_.transform(X)
+        return np.concatenate([X[:, [i]] >= np.arange(1, n) for i, n in enumerate(self.discretizer_.n_bins_)], axis=1)
 
 
 def main(args: argparse.Namespace) -> Optional[npt.ArrayLike]:
